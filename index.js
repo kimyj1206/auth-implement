@@ -1,15 +1,16 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
-
 const app = express();
+const cookieParser = require('cookie-parser');
 
 // 미들웨어 사용 (미들웨어 : JSON 형태의 요청 BODY를 PARSE 하기 위해 사용)
 app.use(express.json());
+app.use(cookieParser());
 
 const secretText = "hello secret user!"; // secret-text
 const refreshText = "hello refresh secret user!"; // refresh-text
 
-// db 대신 배열로 저장 원래는 db에 refreshToken을 저장해야 함
+// db 대신 배열로 저장, 원래는 db에 refreshToken을 저장해야 함
 let refreshTokens = [];
 
 app.post('/login', (req, res) => {
@@ -53,7 +54,7 @@ app.get('/posts', authMiddleware, (req, res) => {
 function authMiddleware(req, res, next) {
   // 토큰을 request headers에서 가져오기, authHeader은 토큰의 주소값을 가짐(토큰 x)
   const authHeader = req.headers['authorization'];
-  // Bearer (토큰)
+  // Bearer (토큰~~)
   // 여기에서 authHeader는 null 검사용 무조건 해야 함.
   const token = authHeader && authHeader.split(' ')[1];
   if(token == null) res.sendStatus(401);
@@ -65,6 +66,26 @@ function authMiddleware(req, res, next) {
     next();
   });
 }
+
+// refreshToken으로 accessToken 새로 생성하기
+app.get('/refresh', (req, res) => {
+  // cookie 가져오기 cookie-parser 덕분에 가져올 수 있음.
+  const cookies = req.cookies;
+  if(!cookies?.jwt) res.sendStatus(403);
+
+  const refreshToken = cookies.jwt;
+  // refreshToken이 데이터베이스에 있는 토큰인지 확인
+  if(!refreshToken.includes(refreshToken)) {
+    return res.sendStatus(403);
+  }
+
+  // token이 유효한 토큰인지 확인
+  jwt.verify(refreshToken, refreshText, (err, user) => {
+    if(err) res.sendStatus(403);
+    const accessToken = jwt.sign({userName: user.name}, secretText, { expiresIn: '30s' });
+    res.json({ accessToken });
+  }); 
+});
 
 const port = 3001;
 app.listen(port, () => {
